@@ -1,82 +1,67 @@
-# Live Screen Broadcaster (Phone to Web)
+# 🏏 Cricket Live Scoring & OBS Overlay System
 
-A zero-maintenance, zero-authentication, real-time typing broadcaster. Whatever you type on your Android phone appears live on a public web display URL in real time.
+A professional, zero-maintenance, real-time cricket scoring app with a **broadcast-quality transparent OBS lower-third overlay ticker** (styled in the TennisCricket.in broadcast standard).
 
 ---
 
-## 🚀 How It Works
+## 📺 How It Works
 
 ```
-[Android App on Phone]  ---(Realtime Stream)--->  [Public Web URL on Vercel]
+[Android Phone Scorer App]  ───(Live Keystrokes/Balls <30ms)───>  [OBS Studio Browser Source]
 ```
 
-- **Phone (Android App):** Open the app, type in the text box (or use keyboard voice dictation).
-- **Public URL (Vercel):** Anyone viewing your link sees your words typed live character-by-character with an animated glowing cursor.
-- **Zero Maintenance:** Uses high-availability cloud pub/sub transport with dual WebSockets + SSE fallback. No servers to maintain, no databases to clean, no passwords/API keys to expire.
+1. **Scorer on Phone:** Taps runs, boundaries, wickets, and extras.
+2. **OBS Overlay:** Instantly updates the broadcast score strip live on YouTube / Facebook / Twitch video streams with zero latency.
+3. **Zero Maintenance:** No servers to host, no database accounts, no billing, no passwords to expire.
 
 ---
 
-## 📱 1. Android App Setup
+## 🎥 Adding to OBS Studio (1920x1080)
 
-1. Open this project folder in **Android Studio**.
-2. Connect your Android phone (or launch an Emulator).
-3. Press **Run** (`Shift + F10`) to install the app.
-4. **Using the App:**
-   - As you type in the text area, the text broadcasts instantly to the display URL.
-   - Tap the **Share URL** button at the top to send the live viewing link via WhatsApp, email, or copy to clipboard.
-   - Tap the **Settings** icon to customize your private room channel name or change your Vercel host URL.
+1. In OBS Studio, go to the **Sources** dock and click **`+`** (Add Source).
+2. Choose **Browser** and name it `Cricket Overlay`.
+3. In the settings:
+   - **URL:** `https://your-project.vercel.app/?room=cricket-live-1` (or your chosen room ID)
+   - **Width:** `1920`
+   - **Height:** `1080`
+   - **Custom CSS:** (Leave empty, the overlay already has a transparent background)
+   - Check **"Shutdown source when not visible"**
+   - Check **"Refresh browser when scene becomes active"**
+4. Click **OK**. The lower-third banner will now sit perfectly at the bottom of your live video stream!
+
+> 💡 **Previewing before stream:** You can open `web/preview.html` in your browser to simulate the overlay over a sample cricket video canvas.
 
 ---
 
-## 🌐 2. Web Display Deployment (Vercel)
+## 📱 Android Scorer Features
 
-The `web/` folder is a self-contained static web application that requires **no build step** and **no npm installation**.
+- **Match & Team Setup (👥 Icon):**
+  - Register Batting Team & Bowling Team names.
+  - Set total overs (e.g., 6, 8, 10, 20 overs).
+  - Set toss decision (e.g., *"Shrutesh 11 decided to bowl"*).
+- **Live Striker & Non-Striker Management:**
+  - One-tap **"Swap Strike"** button.
+  - Auto-swaps striker on 1s, 3s, and at the end of each over.
+  - Tap any batsman or bowler to substitute or add a new player from the squad.
+- **Big Touch Scoring Keypad:**
+  - Dots (`0`), Singles (`1`), Twos (`2`), Threes (`3`).
+  - **FOUR (4)** and **SIX (6)** buttons (triggers floating animated broadcast popup on stream!).
+  - **WIDE** and **NO BALL** buttons.
+  - **OUT / WICKET** button (triggers wicket banner).
+- **Full UNDO Support:**
+  - Misclicked a button? Tap **UNDO** to instantly revert the ball and update the stream.
+- **Auto-Calculations:**
+  - Batsman runs, balls, 4s, and 6s.
+  - Bowler overs, runs conceded, and wickets.
+  - Current Run Rate (CRR) & Projected Score.
+  - Current over ball-by-ball bubbles (`[•] [6] [•] [WD] [•] [•] [6]`).
 
-### Deploy to Vercel (Free & Instant):
+---
 
-#### Option A: Via GitHub (Recommended)
+## 🚀 Deploying to Vercel in 1 Minute
+
 1. Push this repository to GitHub.
-2. Go to [vercel.com](https://vercel.com) and click **"Add New" > "Project"**.
-3. Import your GitHub repository.
-4. Set the **Root Directory** to `web` (or leave default as the root `vercel.json` already points to `web`).
-5. Click **Deploy**. Done! Your URL is live (e.g. `https://your-project.vercel.app`).
-
-#### Option B: Via Vercel CLI
-```bash
-cd web
-npx vercel --prod
-```
-
-### Testing Locally in 5 Seconds:
-You can test the web display right now without deploying:
-- Simply double-click `web/index.html` in your file explorer to open it in Chrome / Edge / Safari!
-- Or run:
-  ```bash
-  cd web
-  python -m http.server 3000
-  ```
-  Open `http://localhost:3000?room=live-demo-room`.
-
----
-
-## 🎨 Web Display Features (Audience Screen)
-
-- **Live Animated Blinking Cursor:** Gives a smooth live typing aesthetic.
-- **Teleprompter / Presentation Controls:**
-  - **Fullscreen toggle** (hides toolbar when presenting on big screens/projectors).
-  - **Font size scaling** (from 18px to 96px).
-  - **Font family cycle** (Modern Sans, Editorial Serif, Clean Monospace).
-  - **Dark / Light theme** toggle.
-- **Room Code & QR Code Modal:** Displays a QR code directly on screen for audience members to scan.
-- **Dual WebSocket + SSE:** Connects via WebSockets with an automatic fallback to Server-Sent Events (SSE) so firewalls never block it.
-- **History Retrieval:** When a viewer opens the page, it instantly loads the current text state without needing to wait for a new keystroke.
-
----
-
-## 🔒 Privacy & Rooms
-
-Every session has a **Room ID** (default: `live-demo-room`). 
-- Change your room ID in the Android app settings (e.g., `sunandan-priv-982`).
-- The audience URL will automatically be `https://your-project.vercel.app?room=sunandan-priv-982`.
-- No one else can view or interfere with your text without knowing your room channel.
-
+2. Go to [vercel.com](https://vercel.com) and click **"Add New Project"**.
+3. Select this repository. The included `vercel.json` automatically configures the `web/` folder.
+4. Click **Deploy**.
+5. Copy your Vercel deployment URL (e.g. `https://my-cricket.vercel.app`) and paste it into the Android App settings.

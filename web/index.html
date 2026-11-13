@@ -1,35 +1,50 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Display | Real-Time Screen</title>
+  <title>Cricket OBS Live Broadcast Overlay</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- QRCode.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Google Fonts: Oswald & Inter for Broadcast Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@600;700;800;900&display=swap" rel="stylesheet">
 
   <script>
     tailwind.config = {
-      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-            mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
-            serif: ['Newsreader', 'Georgia', 'serif'],
+            sans: ['Inter', 'sans-serif'],
+            oswald: ['Oswald', 'sans-serif'],
+          },
+          colors: {
+            ticker: {
+              parchment: '#f7dfbe',
+              parchmentDark: '#eed0a8',
+              yellow: '#ffca28',
+              yellowDark: '#f0b810',
+              accentRed: '#e53935',
+              darkBadge: '#18181b',
+              scoreBlue: '#1e3a8a',
+            }
           },
           animation: {
-            'cursor-blink': 'blink 1s step-start infinite',
-            'pulse-subtle': 'pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'pop-in': 'popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+            'flash-banner': 'flashBanner 2.2s ease-in-out forwards',
           },
           keyframes: {
-            blink: {
-              '0%, 100%': { opacity: '1' },
-              '50%': { opacity: '0' },
+            popIn: {
+              '0%': { transform: 'scale(0.8)', opacity: '0' },
+              '100%': { transform: 'scale(1)', opacity: '1' }
+            },
+            flashBanner: {
+              '0%': { transform: 'translateY(100%)', opacity: '0' },
+              '15%': { transform: 'translateY(0%)', opacity: '1' },
+              '85%': { transform: 'translateY(0%)', opacity: '1' },
+              '100%': { transform: 'translateY(100%)', opacity: '0' }
             }
           }
         }
@@ -38,494 +53,408 @@
   </script>
 
   <style>
-    /* Custom styling for teleprompter typography */
-    #text-content {
-      word-break: break-word;
-      white-space: pre-wrap;
+    /* Full transparency for OBS Studio Browser Source */
+    html, body {
+      background-color: transparent !important;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 1920px;
+      height: 1080px;
     }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
+
+    /* Fixed 1080p canvas positioning */
+    .overlay-viewport {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
     }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background-color: rgba(156, 163, 175, 0.3);
-      border-radius: 9999px;
+
+    /* Ticker strip styling matching TennisCricket.in / broadcast standard */
+    .ticker-shadow {
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
     }
-    /* Auto-hide controls in full-screen if idle */
-    .idle-hide {
-      transition: opacity 0.4s ease;
+
+    /* Ball badge styles */
+    .ball-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 26px;
+      height: 26px;
+      padding: 0 4px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
     }
+    .ball-dot { background: #ffffff; color: #222; }
+    .ball-run { background: #ffffff; color: #1e3a8a; }
+    .ball-four { background: #16a34a; color: #ffffff; }
+    .ball-six { background: #2563eb; color: #ffffff; }
+    .ball-wkt { background: #dc2626; color: #ffffff; }
+    .ball-extra { background: #ffffff; color: #b45309; }
   </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col font-sans antialiased select-text transition-colors duration-200">
+<body>
 
-  <!-- TOP HEADER / CONTROL BAR -->
-  <header id="header-bar" class="idle-hide border-b border-zinc-800/80 bg-zinc-900/70 backdrop-blur-md px-4 sm:px-8 py-3 flex items-center justify-between sticky top-0 z-40 transition-opacity">
-    <div class="flex items-center space-x-3">
-      <!-- Live Status Pill -->
-      <div id="status-badge" class="flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span id="status-text">LIVE</span>
-      </div>
+  <div class="overlay-viewport flex flex-col justify-end pb-8 px-12">
 
-      <!-- Room Selector Pill -->
-      <button onclick="openRoomModal()" class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition">
-        <i data-lucide="radio" class="w-3.5 h-3.5 text-zinc-400"></i>
-        <span>Room:</span>
-        <span id="active-room-label" class="font-bold text-white font-mono">live-demo-room</span>
-        <i data-lucide="chevron-down" class="w-3 h-3 text-zinc-400"></i>
-      </button>
-    </div>
-
-    <!-- Right Controls -->
-    <div class="flex items-center space-x-2">
-      <!-- Font Size Controls -->
-      <div class="hidden sm:flex items-center bg-zinc-800/90 rounded-lg p-0.5 border border-zinc-700">
-        <button onclick="changeFontSize(-4)" title="Decrease font size" class="p-1.5 hover:bg-zinc-700 rounded text-zinc-300 hover:text-white transition">
-          <i data-lucide="minus" class="w-4 h-4"></i>
-        </button>
-        <span id="font-size-label" class="text-xs px-2 font-mono text-zinc-400">32px</span>
-        <button onclick="changeFontSize(4)" title="Increase font size" class="p-1.5 hover:bg-zinc-700 rounded text-zinc-300 hover:text-white transition">
-          <i data-lucide="plus" class="w-4 h-4"></i>
-        </button>
-      </div>
-
-      <!-- Font Family Switcher -->
-      <button onclick="cycleFontFamily()" title="Cycle Font Style (Sans / Serif / Mono)" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg border border-zinc-700 transition">
-        <i data-lucide="type" class="w-4 h-4"></i>
-      </button>
-
-      <!-- Theme Toggle (Dark / Light) -->
-      <button onclick="toggleTheme()" title="Toggle Theme" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg border border-zinc-700 transition">
-        <i id="theme-icon" data-lucide="sun" class="w-4 h-4"></i>
-      </button>
-
-      <!-- Share / QR Code Modal Button -->
-      <button onclick="openQrModal()" title="Show QR Code" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg border border-zinc-700 transition">
-        <i data-lucide="qr-code" class="w-4 h-4"></i>
-      </button>
-
-      <!-- Fullscreen Toggle -->
-      <button onclick="toggleFullscreen()" title="Toggle Fullscreen" class="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition font-medium text-xs flex items-center space-x-1">
-        <i id="fullscreen-icon" data-lucide="maximize" class="w-4 h-4"></i>
-        <span class="hidden md:inline">Fullscreen</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- MAIN DISPLAY CANVAS -->
-  <main class="flex-1 flex flex-col justify-start p-6 sm:p-12 md:p-16 max-w-6xl w-full mx-auto relative overflow-y-auto custom-scrollbar" id="main-scroll-container">
-    
-    <!-- Empty State Placeholder (Visible when no text has been typed yet) -->
-    <div id="empty-state" class="my-auto text-center py-24 text-zinc-500">
-      <div class="inline-flex p-4 rounded-full bg-zinc-900 border border-zinc-800 mb-4 animate-pulse-subtle">
-        <i data-lucide="smartphone" class="w-8 h-8 text-indigo-400"></i>
-      </div>
-      <h2 class="text-xl font-semibold text-zinc-300 mb-2">Ready for live input</h2>
-      <p class="text-sm max-w-md mx-auto text-zinc-500">
-        Open the Android app on your phone and start typing. Your words will appear on this screen live.
-      </p>
-      <div class="mt-6 flex justify-center">
-        <button onclick="openQrModal()" class="inline-flex items-center space-x-2 text-xs text-indigo-400 hover:text-indigo-300 font-medium">
-          <i data-lucide="qr-code" class="w-4 h-4"></i>
-          <span>View Connection QR Code</span>
-        </button>
+    <!-- FLOATING POPUP BANNER FOR BOUNDARIES & WICKETS -->
+    <div id="event-banner-container" class="w-full flex justify-center mb-2 pointer-events-none overflow-hidden h-20">
+      <div id="event-banner" class="hidden transform translate-y-full transition-transform px-10 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-white font-oswald text-4xl tracking-wider uppercase border-2">
+        <span id="event-banner-text">SIX!</span>
       </div>
     </div>
 
-    <!-- Active Text Display (With animated blinking cursor) -->
-    <div id="text-wrapper" class="hidden text-left leading-relaxed">
-      <span id="text-content" class="transition-all duration-75"></span><span id="live-cursor" class="inline-block w-2.5 h-[1.1em] ml-1 bg-indigo-500 align-middle animate-cursor-blink rounded-sm"></span>
-    </div>
-  </main>
+    <!-- LOWER THIRD CRICKET SCORE STRIP -->
+    <div class="w-full ticker-shadow rounded-lg overflow-hidden flex flex-col border-b-[5px] border-red-600 bg-transparent">
+      
+      <div class="w-full flex items-stretch h-[92px] text-zinc-900 font-sans">
 
-  <!-- FOOTER STATS -->
-  <footer id="footer-bar" class="idle-hide border-t border-zinc-800/80 bg-zinc-900/40 px-6 py-2.5 text-xs text-zinc-500 flex justify-between items-center transition-opacity">
-    <div class="flex items-center space-x-4">
-      <span id="word-count">0 words</span>
-      <span>•</span>
-      <span id="char-count">0 characters</span>
-    </div>
-    <div class="flex items-center space-x-3">
-      <span id="last-updated">Waiting for connection...</span>
-      <button onclick="copyCurrentText()" title="Copy Text" class="text-zinc-400 hover:text-zinc-200 transition">
-        <i data-lucide="copy" class="w-3.5 h-3.5 inline"></i>
-      </button>
-    </div>
-  </footer>
+        <!-- 1. BATTING TEAM & SCORE SECTION -->
+        <div class="bg-gradient-to-r from-amber-100 via-amber-200 to-amber-200 px-6 py-2.5 flex flex-col justify-between min-w-[420px] max-w-[450px] border-r border-amber-300/80">
+          <div class="flex items-center justify-between">
+            <span id="batting-team-name" class="font-oswald font-bold text-2xl tracking-wide uppercase text-zinc-900 truncate max-w-[280px]">
+              SHRI BODGESHWAR
+            </span>
+          </div>
 
-  <!-- ROOM MODAL -->
-  <div id="room-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 shadow-2xl text-left">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-semibold text-white">Change Room</h3>
-        <button onclick="closeRoomModal()" class="text-zinc-400 hover:text-white">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-      <p class="text-xs text-zinc-400 mb-4">
-        Enter the room channel name set on your Android phone to tune into that specific stream.
-      </p>
-      <input type="text" id="modal-room-input" class="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono text-sm focus:outline-none focus:border-indigo-500 mb-4">
-      <div class="flex justify-end space-x-2">
-        <button onclick="closeRoomModal()" class="px-4 py-2 rounded-xl text-sm text-zinc-400 hover:text-white transition">Cancel</button>
-        <button onclick="applyNewRoom()" class="px-5 py-2 rounded-xl text-sm bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition">Connect</button>
+          <div class="flex items-baseline space-x-4">
+            <!-- Score: 13-0 -->
+            <div class="flex items-baseline">
+              <span id="team-runs" class="font-oswald font-bold text-[46px] leading-none text-blue-900">13</span>
+              <span class="font-oswald font-bold text-[38px] leading-none text-blue-900 mx-1">-</span>
+              <span id="team-wickets" class="font-oswald font-bold text-[46px] leading-none text-blue-900">0</span>
+            </div>
+            
+            <!-- Overs: 1.0 (8) -->
+            <div class="text-zinc-800 font-oswald font-semibold text-2xl tracking-wide">
+              <span id="current-overs">1.0</span><span class="text-zinc-600 text-lg ml-0.5">(<span id="total-overs">8</span>)</span>
+            </div>
+          </div>
+
+          <!-- Toss / Subtitle info -->
+          <div id="toss-info" class="text-[11px] font-bold tracking-wider uppercase text-zinc-700 truncate">
+            SHRUTESH 11 DECIDED TO BOWL
+          </div>
+        </div>
+
+        <!-- 2. ACTIVE BATSMEN SECTION -->
+        <div class="bg-amber-200 px-6 py-2.5 flex flex-col justify-center space-y-1.5 flex-1 min-w-[320px] border-r border-amber-300">
+          
+          <!-- Striker -->
+          <div id="batsman-1-row" class="flex items-center justify-between text-base font-bold text-zinc-900">
+            <div class="flex items-center space-x-1.5 truncate max-w-[210px]">
+              <span id="b1-striker-icon" class="text-red-600 font-extrabold text-sm">▶</span>
+              <span id="b1-name" class="font-oswald tracking-wide truncate uppercase">GAURESH S</span>
+            </div>
+            <div class="font-oswald text-xl tracking-wider text-right space-x-3">
+              <span id="b1-runs" class="text-zinc-950 font-bold inline-block min-w-[22px] text-right">0</span>
+              <span id="b1-balls" class="text-zinc-600 text-sm font-semibold inline-block min-w-[18px] text-right">0</span>
+            </div>
+          </div>
+
+          <!-- Non-Striker -->
+          <div id="batsman-2-row" class="flex items-center justify-between text-base font-bold text-zinc-900">
+            <div class="flex items-center space-x-1.5 truncate max-w-[210px]">
+              <span id="b2-striker-icon" class="text-transparent font-extrabold text-sm">▶</span>
+              <span id="b2-name" class="font-oswald tracking-wide truncate uppercase text-zinc-800">AJAY YADAV</span>
+            </div>
+            <div class="font-oswald text-xl tracking-wider text-right space-x-3">
+              <span id="b2-runs" class="text-zinc-950 font-bold inline-block min-w-[22px] text-right">12</span>
+              <span id="b2-balls" class="text-zinc-600 text-sm font-semibold inline-block min-w-[18px] text-right">6</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 3. CENTER BADGE (PROJECTED SCORE / CRR / TARGET) -->
+        <div class="bg-zinc-950 text-white px-5 py-2 flex flex-col justify-center items-center min-w-[130px] border-r border-zinc-800">
+          <span id="stat-badge-title" class="text-[10px] font-extrabold tracking-widest text-zinc-400 uppercase">PROJECTED</span>
+          <span id="stat-badge-value" class="font-oswald font-bold text-3xl tracking-wide text-white leading-none mt-0.5">104</span>
+          <span id="crr-subtitle" class="text-[9px] font-bold text-zinc-400 mt-1">CRR: <span id="crr-val">13.00</span></span>
+        </div>
+
+        <!-- 4. ACTIVE BOWLER & CURRENT OVER SECTION -->
+        <div class="bg-gradient-to-r from-amber-400 via-amber-400 to-amber-300 px-6 py-2 flex flex-col justify-between flex-1 min-w-[420px] border-r border-amber-500">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 truncate">
+              <span id="bowler-name" class="font-oswald font-bold text-xl uppercase tracking-wide text-zinc-950 truncate max-w-[220px]">
+                HARSHAD M
+              </span>
+            </div>
+            <!-- Bowler Figures: 0-13 1.0 -->
+            <div class="font-oswald font-bold text-lg text-zinc-900 tracking-wide">
+              <span id="bowler-wickets">0</span>-<span id="bowler-runs">13</span>
+              <span id="bowler-overs" class="text-sm font-semibold text-zinc-700 ml-1">1.0</span>
+            </div>
+          </div>
+
+          <!-- Ball by ball capsules -->
+          <div class="flex items-center space-x-1.5 overflow-hidden py-1" id="balls-container">
+            <!-- Dynamic balls rendered here -->
+            <span class="ball-pill ball-dot">•</span>
+            <span class="ball-pill ball-six">6</span>
+            <span class="ball-pill ball-dot">•</span>
+            <span class="ball-pill ball-extra">WD</span>
+            <span class="ball-pill ball-dot">•</span>
+            <span class="ball-pill ball-dot">•</span>
+            <span class="ball-pill ball-six">6</span>
+          </div>
+        </div>
+
+        <!-- 5. BOWLING TEAM SECTION -->
+        <div class="bg-amber-300 px-5 py-2 flex items-center justify-center min-w-[170px] max-w-[210px]">
+          <span id="bowling-team-name" class="font-oswald font-bold text-xl uppercase tracking-wider text-zinc-900 text-center truncate">
+            SHRUTESH 11
+          </span>
+        </div>
+
       </div>
     </div>
   </div>
 
-  <!-- QR CODE MODAL -->
-  <div id="qr-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="text-lg font-semibold text-white">Audience Link</h3>
-        <button onclick="closeQrModal()" class="text-zinc-400 hover:text-white">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-      <p class="text-xs text-zinc-400 mb-4">Anyone who scans this QR code will view this live typing stream in real time.</p>
-      
-      <div class="bg-white p-4 rounded-xl inline-block shadow-md mb-4" id="qrcode-container"></div>
-      
-      <p id="qr-url-text" class="text-xs font-mono text-zinc-400 break-all select-all mb-4 bg-zinc-950 p-2 rounded-lg border border-zinc-800"></p>
-      <button onclick="copyShareUrl()" class="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-sm font-medium transition flex items-center justify-center space-x-2">
-        <i data-lucide="clipboard-copy" class="w-4 h-4"></i>
-        <span>Copy Share URL</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- JAVASCRIPT LOGIC -->
+  <!-- REAL-TIME RECEIVER SCRIPT -->
   <script>
-    // State
     const urlParams = new URLSearchParams(window.location.search);
-    let currentRoom = urlParams.get('room') || 'live-demo-room';
-    let currentFontSize = 32;
-    let fontStyles = ['font-sans', 'font-serif', 'font-mono'];
-    let currentFontStyleIndex = 0;
+    const room = urlParams.get('room') || 'cricket-live-1';
+
     let activeSocket = null;
     let activeEventSource = null;
-    let isDark = true;
-    let currentText = "";
-    let idleTimer = null;
+    let lastEventId = null;
 
     // Elements
-    const textContentEl = document.getElementById('text-content');
-    const textWrapperEl = document.getElementById('text-wrapper');
-    const emptyStateEl = document.getElementById('empty-state');
-    const statusBadgeEl = document.getElementById('status-badge');
-    const statusTextEl = document.getElementById('status-text');
-    const activeRoomLabel = document.getElementById('active-room-label');
-    const fontSizeLabel = document.getElementById('font-size-label');
-    const wordCountEl = document.getElementById('word-count');
-    const charCountEl = document.getElementById('char-count');
-    const lastUpdatedEl = document.getElementById('last-updated');
+    const battingTeamEl = document.getElementById('batting-team-name');
+    const teamRunsEl = document.getElementById('team-runs');
+    const teamWicketsEl = document.getElementById('team-wickets');
+    const currentOversEl = document.getElementById('current-overs');
+    const totalOversEl = document.getElementById('total-overs');
+    const tossInfoEl = document.getElementById('toss-info');
 
-    // Initialize UI
-    function init() {
-      lucide.createIcons();
-      activeRoomLabel.textContent = currentRoom;
-      updateFontSize();
-      connectRealtime(currentRoom);
-      fetchLatestMessage(currentRoom);
-      setupIdleDetection();
-    }
+    const b1NameEl = document.getElementById('b1-name');
+    const b1RunsEl = document.getElementById('b1-runs');
+    const b1BallsEl = document.getElementById('b1-balls');
+    const b1StrikerIcon = document.getElementById('b1-striker-icon');
 
-    // Connect to WebSocket with automatic fallback to Server-Sent Events (SSE)
-    function connectRealtime(room) {
-      cleanupConnections();
-      setStatus('connecting', 'CONNECTING...');
+    const b2NameEl = document.getElementById('b2-name');
+    const b2RunsEl = document.getElementById('b2-runs');
+    const b2BallsEl = document.getElementById('b2-balls');
+    const b2StrikerIcon = document.getElementById('b2-striker-icon');
 
+    const statBadgeTitle = document.getElementById('stat-badge-title');
+    const statBadgeValue = document.getElementById('stat-badge-value');
+    const crrValEl = document.getElementById('crr-val');
+
+    const bowlerNameEl = document.getElementById('bowler-name');
+    const bowlerWicketsEl = document.getElementById('bowler-wickets');
+    const bowlerRunsEl = document.getElementById('bowler-runs');
+    const bowlerOversEl = document.getElementById('bowler-overs');
+    const ballsContainer = document.getElementById('balls-container');
+
+    const bowlingTeamEl = document.getElementById('bowling-team-name');
+    const eventBanner = document.getElementById('event-banner');
+    const eventBannerText = document.getElementById('event-banner-text');
+
+    function connect() {
+      cleanup();
+
+      // Primary: WebSocket
       try {
-        // Primary transport: WebSocket
         const wsUrl = `wss://ntfy.sh/${encodeURIComponent(room)}/ws`;
         activeSocket = new WebSocket(wsUrl);
 
-        activeSocket.onopen = () => {
-          setStatus('live', 'LIVE STREAM');
-        };
-
-        activeSocket.onmessage = (event) => {
+        activeSocket.onmessage = (e) => {
           try {
-            const data = JSON.parse(event.data);
+            const data = JSON.parse(e.data);
             if (data.event === 'message') {
-              handleIncomingMessage(data.message);
+              processMatchData(data.message);
             }
-          } catch (e) {
-            handleIncomingMessage(event.data);
+          } catch(err) {
+            processMatchData(e.data);
           }
         };
 
-        activeSocket.onerror = () => {
-          // Fallback to Server-Sent Events (SSE) if WebSocket encounters an issue
-          fallbackToSSE(room);
-        };
-
+        activeSocket.onerror = () => fallbackSSE();
         activeSocket.onclose = () => {
-          // Reconnect with exponential backoff if not deliberately closed
-          setTimeout(() => {
-            if (!activeSocket || activeSocket.readyState === WebSocket.CLOSED) {
-              connectRealtime(room);
-            }
-          }, 3000);
+          setTimeout(connect, 3000);
         };
-
       } catch (err) {
-        fallbackToSSE(room);
+        fallbackSSE();
       }
+
+      // Initial state fetch
+      fetchInitialState();
     }
 
-    // Fallback: Server-Sent Events (SSE)
-    function fallbackToSSE(room) {
+    function fallbackSSE() {
       if (activeEventSource) return;
-      console.log('Connecting via Server-Sent Events fallback...');
-      
-      const sseUrl = `https://ntfy.sh/${encodeURIComponent(room)}/sse`;
-      activeEventSource = new EventSource(sseUrl);
-
-      activeEventSource.onopen = () => {
-        setStatus('live', 'LIVE (SSE)');
-      };
-
-      activeEventSource.onmessage = (event) => {
+      activeEventSource = new EventSource(`https://ntfy.sh/${encodeURIComponent(room)}/sse`);
+      activeEventSource.onmessage = (e) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse(e.data);
           if (data.event === 'message') {
-            handleIncomingMessage(data.message);
+            processMatchData(data.message);
           }
-        } catch (e) {
-          handleIncomingMessage(event.data);
+        } catch(err) {
+          processMatchData(e.data);
         }
-      };
-
-      activeEventSource.onerror = () => {
-        setStatus('error', 'RECONNECTING...');
       };
     }
 
-    // Process incoming message payload
-    function handleIncomingMessage(rawPayload) {
-      let text = rawPayload;
+    async function fetchInitialState() {
       try {
-        const parsed = JSON.parse(rawPayload);
-        if (parsed.text !== undefined) {
-          text = parsed.text;
-        }
-      } catch (e) {
-        // rawPayload is plain string
-      }
-
-      renderText(text);
-    }
-
-    // Initial fetch to immediately grab any existing text without waiting for a new keystroke
-    async function fetchLatestMessage(room) {
-      try {
-        const response = await fetch(`https://ntfy.sh/${encodeURIComponent(room)}/json?poll=1`);
-        if (response.ok) {
-          const textData = await response.text();
-          const lines = textData.trim().split('\n');
+        const res = await fetch(`https://ntfy.sh/${encodeURIComponent(room)}/json?poll=1`);
+        if (res.ok) {
+          const text = await res.text();
+          const lines = text.trim().split('\n');
           for (let i = lines.length - 1; i >= 0; i--) {
             try {
               const item = JSON.parse(lines[i]);
               if (item.event === 'message' && item.message) {
-                handleIncomingMessage(item.message);
+                processMatchData(item.message);
                 break;
               }
-            } catch (e) {}
+            } catch(e) {}
           }
         }
-      } catch (e) {
-        // Non-blocking fetch error
-      }
+      } catch(e) {}
     }
 
-    // Clean up existing open sockets
-    function cleanupConnections() {
-      if (activeSocket) {
-        activeSocket.onclose = null;
-        activeSocket.close();
-        activeSocket = null;
-      }
-      if (activeEventSource) {
-        activeEventSource.close();
-        activeEventSource = null;
-      }
+    function cleanup() {
+      if (activeSocket) { activeSocket.close(); activeSocket = null; }
+      if (activeEventSource) { activeEventSource.close(); activeEventSource = null; }
     }
 
-    // Render text on screen with smooth scrolling and animations
-    function renderText(text) {
-      currentText = text || "";
-      textContentEl.textContent = currentText;
-
-      if (!currentText.trim()) {
-        emptyStateEl.classList.remove('hidden');
-        textWrapperEl.classList.add('hidden');
-      } else {
-        emptyStateEl.classList.add('hidden');
-        textWrapperEl.classList.remove('hidden');
-      }
-
-      // Update Word / Char counts
-      const words = currentText.trim() ? currentText.trim().split(/\s+/).length : 0;
-      wordCountEl.textContent = `${words} words`;
-      charCountEl.textContent = `${currentText.length} characters`;
-      
-      const now = new Date();
-      lastUpdatedEl.textContent = `Updated ${now.toLocaleTimeString()}`;
-
-      // Smooth auto-scroll to keep active typing visible
-      const container = document.getElementById('main-scroll-container');
-      container.scrollTop = container.scrollHeight;
-    }
-
-    // Status Pill UI helper
-    function setStatus(state, label) {
-      statusTextEl.textContent = label;
-      if (state === 'live') {
-        statusBadgeEl.className = "flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
-        statusBadgeEl.firstElementChild.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
-      } else if (state === 'connecting') {
-        statusBadgeEl.className = "flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20";
-        statusBadgeEl.firstElementChild.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
-      } else {
-        statusBadgeEl.className = "flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20";
-        statusBadgeEl.firstElementChild.className = "w-2 h-2 rounded-full bg-rose-400";
-      }
-    }
-
-    // Font Size Controls
-    function changeFontSize(delta) {
-      currentFontSize = Math.max(18, Math.min(96, currentFontSize + delta));
-      updateFontSize();
-    }
-
-    function updateFontSize() {
-      textContentEl.style.fontSize = `${currentFontSize}px`;
-      fontSizeLabel.textContent = `${currentFontSize}px`;
-      const cursor = document.getElementById('live-cursor');
-      cursor.style.height = `${currentFontSize * 1.15}px`;
-      cursor.style.width = `${Math.max(3, currentFontSize * 0.1)}px`;
-    }
-
-    // Font Style Switcher
-    function cycleFontFamily() {
-      const container = document.getElementById('text-wrapper');
-      container.classList.remove(fontStyles[currentFontStyleIndex]);
-      currentFontStyleIndex = (currentFontStyleIndex + 1) % fontStyles.length;
-      container.classList.add(fontStyles[currentFontStyleIndex]);
-    }
-
-    // Dark / Light Theme Toggle
-    function toggleTheme() {
-      isDark = !isDark;
-      const html = document.documentElement;
-      const themeIcon = document.getElementById('theme-icon');
-      if (isDark) {
-        html.classList.add('dark');
-        document.body.className = "bg-zinc-950 text-zinc-100 min-h-screen flex flex-col font-sans antialiased select-text transition-colors duration-200";
-        themeIcon.setAttribute('data-lucide', 'sun');
-      } else {
-        html.classList.remove('dark');
-        document.body.className = "bg-zinc-50 text-zinc-900 min-h-screen flex flex-col font-sans antialiased select-text transition-colors duration-200";
-        themeIcon.setAttribute('data-lucide', 'moon');
-      }
-      lucide.createIcons();
-    }
-
-    // Fullscreen Toggle
-    function toggleFullscreen() {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {});
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
+    function processMatchData(raw) {
+      let data = raw;
+      if (typeof raw === 'string') {
+        try {
+          data = JSON.parse(raw);
+        } catch(e) {
+          return;
         }
       }
-    }
 
-    document.addEventListener('fullscreenchange', () => {
-      const icon = document.getElementById('fullscreen-icon');
-      if (document.fullscreenElement) {
-        icon.setAttribute('data-lucide', 'minimize');
-      } else {
-        icon.setAttribute('data-lucide', 'maximize');
-      }
-      lucide.createIcons();
-    });
+      if (!data || !data.teamBatting) return;
 
-    // Auto-dim toolbar when in fullscreen and idle
-    function setupIdleDetection() {
-      const headers = [document.getElementById('header-bar'), document.getElementById('footer-bar')];
-      function resetIdle() {
-        headers.forEach(h => h.style.opacity = '1');
-        clearTimeout(idleTimer);
-        if (document.fullscreenElement) {
-          idleTimer = setTimeout(() => {
-            headers.forEach(h => h.style.opacity = '0');
-          }, 3500);
+      // 1. Batting Team & Score
+      battingTeamEl.textContent = data.teamBatting.name || 'BATTING TEAM';
+      teamRunsEl.textContent = data.teamBatting.runs ?? 0;
+      teamWicketsEl.textContent = data.teamBatting.wickets ?? 0;
+      currentOversEl.textContent = data.teamBatting.overs || '0.0';
+      totalOversEl.textContent = data.totalOvers || '8';
+      tossInfoEl.textContent = data.tossInfo || '';
+
+      // 2. Batsmen
+      const b1 = data.striker || { name: 'BATSMAN 1', runs: 0, balls: 0, isStriker: true };
+      const b2 = data.nonStriker || { name: 'BATSMAN 2', runs: 0, balls: 0, isStriker: false };
+
+      b1NameEl.textContent = b1.name;
+      b1RunsEl.textContent = b1.runs;
+      b1BallsEl.textContent = b1.balls;
+      b1StrikerIcon.className = b1.isStriker ? "text-red-600 font-extrabold text-sm" : "text-transparent font-extrabold text-sm";
+
+      b2NameEl.textContent = b2.name;
+      b2RunsEl.textContent = b2.runs;
+      b2BallsEl.textContent = b2.balls;
+      b2StrikerIcon.className = b2.isStriker ? "text-red-600 font-extrabold text-sm" : "text-transparent font-extrabold text-sm";
+
+      // 3. Center Stats Badge
+      if (data.target && data.target > 0) {
+        statBadgeTitle.textContent = "TARGET";
+        statBadgeValue.textContent = data.target;
+        if (data.rrr) {
+          crrValEl.textContent = data.rrr;
+          document.getElementById('crr-subtitle').innerHTML = `RRR: <span>${data.rrr}</span>`;
         }
+      } else {
+        statBadgeTitle.textContent = "PROJECTED";
+        statBadgeValue.textContent = data.projected || '0';
+        crrValEl.textContent = data.crr || '0.00';
       }
-      window.addEventListener('mousemove', resetIdle);
-      window.addEventListener('keydown', resetIdle);
+
+      // 4. Bowler
+      const bw = data.bowler || { name: 'BOWLER', wickets: 0, runsConceded: 0, overs: '0.0' };
+      bowlerNameEl.textContent = bw.name;
+      bowlerWicketsEl.textContent = bw.wickets ?? 0;
+      bowlerRunsEl.textContent = bw.runsConceded ?? 0;
+      bowlerOversEl.textContent = bw.overs || '0.0';
+
+      // 5. This Over Balls
+      renderBalls(data.thisOver || []);
+
+      // 6. Bowling Team
+      bowlingTeamEl.textContent = (data.teamBowling && data.teamBowling.name) ? data.teamBowling.name : 'BOWLING TEAM';
+
+      // 7. Event Banner (FOUR, SIX, WICKET flash)
+      if (data.lastEvent && data.eventId !== lastEventId) {
+        lastEventId = data.eventId;
+        triggerBanner(data.lastEvent);
+      }
     }
 
-    // Room Modal
-    function openRoomModal() {
-      document.getElementById('modal-room-input').value = currentRoom;
-      document.getElementById('room-modal').classList.remove('hidden');
-    }
-    function closeRoomModal() {
-      document.getElementById('room-modal').classList.add('hidden');
-    }
-    function applyNewRoom() {
-      const val = document.getElementById('modal-room-input').value.trim();
-      if (val) {
-        currentRoom = val;
-        activeRoomLabel.textContent = currentRoom;
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.set('room', currentRoom);
-        window.history.replaceState({}, '', newUrl);
-        closeRoomModal();
-        connectRealtime(currentRoom);
-        fetchLatestMessage(currentRoom);
+    function renderBalls(balls) {
+      ballsContainer.innerHTML = '';
+      if (!balls || balls.length === 0) {
+        ballsContainer.innerHTML = '<span class="text-xs font-bold text-amber-900/60 uppercase tracking-wider">Start of over</span>';
+        return;
       }
-    }
 
-    // QR Code Modal
-    let qrInstance = null;
-    function openQrModal() {
-      const shareUrl = window.location.href;
-      document.getElementById('qr-url-text').textContent = shareUrl;
-      const container = document.getElementById('qrcode-container');
-      container.innerHTML = '';
-      qrInstance = new QRCode(container, {
-        text: shareUrl,
-        width: 180,
-        height: 180,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.M
+      balls.forEach(b => {
+        const span = document.createElement('span');
+        let cls = 'ball-pill ';
+        if (b === '•' || b === '0') {
+          cls += 'ball-dot';
+        } else if (b === '4') {
+          cls += 'ball-four';
+        } else if (b === '6') {
+          cls += 'ball-six';
+        } else if (b === 'W' || b === 'WKT') {
+          cls += 'ball-wkt';
+        } else if (b.includes('WD') || b.includes('NB')) {
+          cls += 'ball-extra';
+        } else {
+          cls += 'ball-run';
+        }
+        span.className = cls;
+        span.textContent = b;
+        ballsContainer.appendChild(span);
       });
-      document.getElementById('qr-modal').classList.remove('hidden');
-    }
-    function closeQrModal() {
-      document.getElementById('qr-modal').classList.add('hidden');
-    }
-    function copyShareUrl() {
-      navigator.clipboard.writeText(window.location.href);
-      alert('Audience URL copied to clipboard!');
     }
 
-    function copyCurrentText() {
-      if (currentText) {
-        navigator.clipboard.writeText(currentText);
-        alert('Text copied to clipboard!');
+    function triggerBanner(event) {
+      let text = '';
+      let bg = '';
+      let border = '';
+
+      if (event === '4') {
+        text = 'FOUR! 🔥 4 RUNS';
+        bg = 'bg-gradient-to-r from-emerald-600 to-green-700';
+        border = 'border-emerald-400';
+      } else if (event === '6') {
+        text = 'MAXIMUM! 🚀 SIX 6';
+        bg = 'bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800';
+        border = 'border-blue-400';
+      } else if (event === 'W' || event === 'WKT') {
+        text = 'WICKET! 💥 OUT';
+        bg = 'bg-gradient-to-r from-red-700 to-rose-900';
+        border = 'border-red-400';
+      } else {
+        return;
       }
+
+      eventBannerText.textContent = text;
+      eventBanner.className = `px-10 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 text-white font-oswald text-4xl tracking-wider uppercase border-2 ${bg} ${border} animate-flash-banner`;
+      eventBanner.classList.remove('hidden');
+
+      setTimeout(() => {
+        eventBanner.classList.add('hidden');
+      }, 2300);
     }
 
-    // Launch
-    window.addEventListener('DOMContentLoaded', init);
+    window.addEventListener('DOMContentLoaded', connect);
   </script>
 </body>
 </html>
-
