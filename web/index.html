@@ -59,15 +59,21 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      width: 1920px;
-      height: 1080px;
+      width: 100%;
+      height: 100%;
+      min-height: 100vh;
     }
 
-    /* Fixed 1080p canvas positioning */
+    /* Responsive overlay positioning: always anchored to the bottom */
     .overlay-viewport {
-      width: 1920px;
-      height: 1080px;
-      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 100vh;
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
     }
 
     /* Ticker strip styling matching TennisCricket.in / broadcast standard */
@@ -80,14 +86,21 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 26px;
-      height: 26px;
+      min-width: 24px;
+      height: 24px;
       padding: 0 4px;
       border-radius: 4px;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 800;
       line-height: 1;
       box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    @media (min-width: 768px) {
+      .ball-pill {
+        min-width: 26px;
+        height: 26px;
+        font-size: 13px;
+      }
     }
     .ball-dot { background: #ffffff; color: #222; }
     .ball-run { background: #ffffff; color: #1e3a8a; }
@@ -99,7 +112,7 @@
 </head>
 <body>
 
-  <div class="overlay-viewport flex flex-col justify-end pb-8 px-12">
+  <div class="overlay-viewport pb-3 sm:pb-6 md:pb-8 px-2 sm:px-6 md:px-10 pointer-events-none">
 
     <!-- FLOATING POPUP BANNER FOR BOUNDARIES & WICKETS -->
     <div id="event-banner-container" class="w-full flex justify-center mb-2 pointer-events-none overflow-hidden h-20">
@@ -109,91 +122,91 @@
     </div>
 
     <!-- LOWER THIRD CRICKET SCORE STRIP -->
-    <div class="w-full ticker-shadow rounded-lg overflow-hidden flex flex-col border-b-[5px] border-red-600 bg-transparent">
+    <div class="w-full max-w-[1760px] mx-auto ticker-shadow rounded-lg overflow-hidden flex flex-col border-b-[5px] border-red-600 bg-transparent pointer-events-auto">
       
-      <div class="w-full flex items-stretch h-[92px] text-zinc-900 font-sans">
+      <div class="w-full flex items-stretch h-[82px] sm:h-[88px] md:h-[92px] text-zinc-900 font-sans">
 
         <!-- 1. BATTING TEAM & SCORE SECTION -->
-        <div class="bg-gradient-to-r from-amber-100 via-amber-200 to-amber-200 px-6 py-2.5 flex flex-col justify-between min-w-[420px] max-w-[450px] border-r border-amber-300/80">
+        <div class="bg-gradient-to-r from-amber-100 via-amber-200 to-amber-200 px-3 sm:px-5 md:px-6 py-2 md:py-2.5 flex flex-col justify-between min-w-[280px] sm:min-w-[340px] md:min-w-[400px] max-w-[460px] border-r border-amber-300/80">
           <div class="flex items-center justify-between">
-            <span id="batting-team-name" class="font-oswald font-bold text-2xl tracking-wide uppercase text-zinc-900 truncate max-w-[280px]">
+            <span id="batting-team-name" class="font-oswald font-bold text-lg sm:text-xl md:text-2xl tracking-wide uppercase text-zinc-900 truncate max-w-[260px]">
               SHRI BODGESHWAR
             </span>
           </div>
 
-          <div class="flex items-baseline space-x-4">
+          <div class="flex items-baseline space-x-3 md:space-x-4">
             <!-- Score: 13-0 -->
             <div class="flex items-baseline">
-              <span id="team-runs" class="font-oswald font-bold text-[46px] leading-none text-blue-900">13</span>
-              <span class="font-oswald font-bold text-[38px] leading-none text-blue-900 mx-1">-</span>
-              <span id="team-wickets" class="font-oswald font-bold text-[46px] leading-none text-blue-900">0</span>
+              <span id="team-runs" class="font-oswald font-bold text-3xl sm:text-4xl md:text-[46px] leading-none text-blue-900">13</span>
+              <span class="font-oswald font-bold text-2xl sm:text-3xl md:text-[38px] leading-none text-blue-900 mx-1">-</span>
+              <span id="team-wickets" class="font-oswald font-bold text-3xl sm:text-4xl md:text-[46px] leading-none text-blue-900">0</span>
             </div>
             
             <!-- Overs: 1.0 (8) -->
-            <div class="text-zinc-800 font-oswald font-semibold text-2xl tracking-wide">
-              <span id="current-overs">1.0</span><span class="text-zinc-600 text-lg ml-0.5">(<span id="total-overs">8</span>)</span>
+            <div class="text-zinc-800 font-oswald font-semibold text-lg sm:text-xl md:text-2xl tracking-wide">
+              <span id="current-overs">1.0</span><span class="text-zinc-600 text-sm md:text-lg ml-0.5">(<span id="total-overs">8</span>)</span>
             </div>
           </div>
 
           <!-- Toss / Subtitle info -->
-          <div id="toss-info" class="text-[11px] font-bold tracking-wider uppercase text-zinc-700 truncate">
+          <div id="toss-info" class="text-[10px] md:text-[11px] font-bold tracking-wider uppercase text-zinc-700 truncate">
             SHRUTESH 11 DECIDED TO BOWL
           </div>
         </div>
 
         <!-- 2. ACTIVE BATSMEN SECTION -->
-        <div class="bg-amber-200 px-6 py-2.5 flex flex-col justify-center space-y-1.5 flex-1 min-w-[320px] border-r border-amber-300">
+        <div class="bg-amber-200 px-3 sm:px-5 md:px-6 py-2 md:py-2.5 flex flex-col justify-center space-y-1 sm:space-y-1.5 flex-1 min-w-[240px] sm:min-w-[280px] md:min-w-[320px] border-r border-amber-300">
           
           <!-- Striker -->
-          <div id="batsman-1-row" class="flex items-center justify-between text-base font-bold text-zinc-900">
-            <div class="flex items-center space-x-1.5 truncate max-w-[210px]">
-              <span id="b1-striker-icon" class="text-red-600 font-extrabold text-sm">▶</span>
-              <span id="b1-name" class="font-oswald tracking-wide truncate uppercase">GAURESH S</span>
+          <div id="batsman-1-row" class="flex items-center justify-between text-sm sm:text-base font-bold text-zinc-900">
+            <div class="flex items-center space-x-1.5 truncate max-w-[190px]">
+              <span id="b1-striker-icon" class="text-red-600 font-extrabold text-xs sm:text-sm">▶</span>
+              <span id="b1-name" class="font-oswald tracking-wide truncate uppercase text-sm sm:text-base">GAURESH S</span>
             </div>
-            <div class="font-oswald text-xl tracking-wider text-right space-x-3">
-              <span id="b1-runs" class="text-zinc-950 font-bold inline-block min-w-[22px] text-right">0</span>
-              <span id="b1-balls" class="text-zinc-600 text-sm font-semibold inline-block min-w-[18px] text-right">0</span>
+            <div class="font-oswald text-base sm:text-lg md:text-xl tracking-wider text-right space-x-2 sm:space-x-3">
+              <span id="b1-runs" class="text-zinc-950 font-bold inline-block min-w-[20px] text-right">0</span>
+              <span id="b1-balls" class="text-zinc-600 text-xs sm:text-sm font-semibold inline-block min-w-[16px] text-right">0</span>
             </div>
           </div>
 
           <!-- Non-Striker -->
-          <div id="batsman-2-row" class="flex items-center justify-between text-base font-bold text-zinc-900">
-            <div class="flex items-center space-x-1.5 truncate max-w-[210px]">
-              <span id="b2-striker-icon" class="text-transparent font-extrabold text-sm">▶</span>
-              <span id="b2-name" class="font-oswald tracking-wide truncate uppercase text-zinc-800">AJAY YADAV</span>
+          <div id="batsman-2-row" class="flex items-center justify-between text-sm sm:text-base font-bold text-zinc-900">
+            <div class="flex items-center space-x-1.5 truncate max-w-[190px]">
+              <span id="b2-striker-icon" class="text-transparent font-extrabold text-xs sm:text-sm">▶</span>
+              <span id="b2-name" class="font-oswald tracking-wide truncate uppercase text-zinc-800 text-sm sm:text-base">AJAY YADAV</span>
             </div>
-            <div class="font-oswald text-xl tracking-wider text-right space-x-3">
-              <span id="b2-runs" class="text-zinc-950 font-bold inline-block min-w-[22px] text-right">12</span>
-              <span id="b2-balls" class="text-zinc-600 text-sm font-semibold inline-block min-w-[18px] text-right">6</span>
+            <div class="font-oswald text-base sm:text-lg md:text-xl tracking-wider text-right space-x-2 sm:space-x-3">
+              <span id="b2-runs" class="text-zinc-950 font-bold inline-block min-w-[20px] text-right">12</span>
+              <span id="b2-balls" class="text-zinc-600 text-xs sm:text-sm font-semibold inline-block min-w-[16px] text-right">6</span>
             </div>
           </div>
 
         </div>
 
         <!-- 3. CENTER BADGE (PROJECTED SCORE / CRR / TARGET) -->
-        <div class="bg-zinc-950 text-white px-5 py-2 flex flex-col justify-center items-center min-w-[130px] border-r border-zinc-800">
-          <span id="stat-badge-title" class="text-[10px] font-extrabold tracking-widest text-zinc-400 uppercase">PROJECTED</span>
-          <span id="stat-badge-value" class="font-oswald font-bold text-3xl tracking-wide text-white leading-none mt-0.5">104</span>
-          <span id="crr-subtitle" class="text-[9px] font-bold text-zinc-400 mt-1">CRR: <span id="crr-val">13.00</span></span>
+        <div class="bg-zinc-950 text-white px-3 sm:px-4 md:px-5 py-2 flex flex-col justify-center items-center min-w-[100px] sm:min-w-[115px] md:min-w-[130px] border-r border-zinc-800">
+          <span id="stat-badge-title" class="text-[9px] md:text-[10px] font-extrabold tracking-widest text-zinc-400 uppercase">PROJECTED</span>
+          <span id="stat-badge-value" class="font-oswald font-bold text-2xl sm:text-3xl tracking-wide text-white leading-none mt-0.5">104</span>
+          <span id="crr-subtitle" class="text-[8px] md:text-[9px] font-bold text-zinc-400 mt-1">CRR: <span id="crr-val">13.00</span></span>
         </div>
 
         <!-- 4. ACTIVE BOWLER & CURRENT OVER SECTION -->
-        <div class="bg-gradient-to-r from-amber-400 via-amber-400 to-amber-300 px-6 py-2 flex flex-col justify-between flex-1 min-w-[420px] border-r border-amber-500">
+        <div class="bg-gradient-to-r from-amber-400 via-amber-400 to-amber-300 px-3 sm:px-5 md:px-6 py-2 flex flex-col justify-between flex-1 min-w-[280px] sm:min-w-[340px] md:min-w-[400px] border-r border-amber-500">
           <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2 truncate">
-              <span id="bowler-name" class="font-oswald font-bold text-xl uppercase tracking-wide text-zinc-950 truncate max-w-[220px]">
+            <div class="flex items-center space-x-1.5 truncate">
+              <span id="bowler-name" class="font-oswald font-bold text-base sm:text-lg md:text-xl uppercase tracking-wide text-zinc-950 truncate max-w-[200px]">
                 HARSHAD M
               </span>
             </div>
             <!-- Bowler Figures: 0-13 1.0 -->
-            <div class="font-oswald font-bold text-lg text-zinc-900 tracking-wide">
+            <div class="font-oswald font-bold text-sm sm:text-base md:text-lg text-zinc-900 tracking-wide">
               <span id="bowler-wickets">0</span>-<span id="bowler-runs">13</span>
-              <span id="bowler-overs" class="text-sm font-semibold text-zinc-700 ml-1">1.0</span>
+              <span id="bowler-overs" class="text-xs sm:text-sm font-semibold text-zinc-700 ml-1">1.0</span>
             </div>
           </div>
 
           <!-- Ball by ball capsules -->
-          <div class="flex items-center space-x-1.5 overflow-hidden py-1" id="balls-container">
+          <div class="flex items-center space-x-1 sm:space-x-1.5 overflow-hidden py-1" id="balls-container">
             <!-- Dynamic balls rendered here -->
             <span class="ball-pill ball-dot">•</span>
             <span class="ball-pill ball-six">6</span>
@@ -206,8 +219,8 @@
         </div>
 
         <!-- 5. BOWLING TEAM SECTION -->
-        <div class="bg-amber-300 px-5 py-2 flex items-center justify-center min-w-[170px] max-w-[210px]">
-          <span id="bowling-team-name" class="font-oswald font-bold text-xl uppercase tracking-wider text-zinc-900 text-center truncate">
+        <div class="bg-amber-300 px-3 sm:px-4 md:px-5 py-2 flex items-center justify-center min-w-[120px] sm:min-w-[150px] md:min-w-[180px]">
+          <span id="bowling-team-name" class="font-oswald font-bold text-base sm:text-lg md:text-xl uppercase tracking-wider text-zinc-900 text-center truncate">
             SHRUTESH 11
           </span>
         </div>
