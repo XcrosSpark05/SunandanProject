@@ -9,7 +9,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,7 +26,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paysetu.sunandanproject.ui.theme.SunandanProjectTheme
@@ -40,7 +38,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-// DATA MODELS FOR CRICKET MATCH STATE
+// 1. DATA MODELS WITH FULL JSON SERIALIZATION & PERSISTENCE
 data class Batsman(
     val name: String,
     var runs: Int = 0,
@@ -48,7 +46,27 @@ data class Batsman(
     var fours: Int = 0,
     var sixes: Int = 0,
     var isOut: Boolean = false
-)
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("name", name)
+        put("runs", runs)
+        put("balls", balls)
+        put("fours", fours)
+        put("sixes", sixes)
+        put("isOut", isOut)
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject): Batsman = Batsman(
+            name = obj.optString("name", "Batsman"),
+            runs = obj.optInt("runs", 0),
+            balls = obj.optInt("balls", 0),
+            fours = obj.optInt("fours", 0),
+            sixes = obj.optInt("sixes", 0),
+            isOut = obj.optBoolean("isOut", false)
+        )
+    }
+}
 
 data class Bowler(
     val name: String,
@@ -58,14 +76,30 @@ data class Bowler(
 ) {
     val oversFormatted: String
         get() = "${ballsBowled / 6}.${ballsBowled % 6}"
+
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("name", name)
+        put("ballsBowled", ballsBowled)
+        put("runsConceded", runsConceded)
+        put("wickets", wickets)
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject): Bowler = Bowler(
+            name = obj.optString("name", "Bowler"),
+            ballsBowled = obj.optInt("ballsBowled", 0),
+            runsConceded = obj.optInt("runsConceded", 0),
+            wickets = obj.optInt("wickets", 0)
+        )
+    }
 }
 
 data class MatchState(
     var battingTeam: String = "SHRI BODGESHWAR",
     var bowlingTeam: String = "SHRUTESH 11",
-    var totalRuns: Int = 13,
+    var totalRuns: Int = 0,
     var totalWickets: Int = 0,
-    var totalBallsBowled: Int = 6,
+    var totalBallsBowled: Int = 0,
     var maxOvers: Int = 8,
     var tossInfo: String = "SHRUTESH 11 DECIDED TO BOWL",
     var target: Int = 0,
@@ -76,9 +110,10 @@ data class MatchState(
     
     var batsmenList: MutableList<Batsman> = mutableListOf(),
     var bowlersList: MutableList<Bowler> = mutableListOf(),
-    var currentOverBalls: MutableList<String> = mutableListOf("•", "6", "•", "WD", "•", "•", "6"),
+    var currentOverBalls: MutableList<String> = mutableListOf(),
     var lastEvent: String? = null,
-    var eventId: Long = 0
+    var eventId: Long = 0,
+    var isOverComplete: Boolean = false
 ) {
     val currentOversFormatted: String
         get() = "${totalBallsBowled / 6}.${totalBallsBowled % 6}"
@@ -117,7 +152,8 @@ data class MatchState(
             bowlersList = this.bowlersList.map { it.copy() }.toMutableList(),
             currentOverBalls = this.currentOverBalls.toMutableList(),
             lastEvent = this.lastEvent,
-            eventId = this.eventId
+            eventId = this.eventId,
+            isOverComplete = this.isOverComplete
         )
     }
 
@@ -176,7 +212,113 @@ data class MatchState(
         root.put("lastEvent", lastEvent ?: "")
         root.put("eventId", eventId)
 
+        // State persistence metadata
+        root.put("totalBallsBowled", totalBallsBowled)
+        root.put("isOverComplete", isOverComplete)
+
+        val bListJson = JSONArray()
+        batsmenList.forEach { bListJson.put(it.toJson()) }
+        root.put("saved_batsmen_list", bListJson)
+
+        val bwListJson = JSONArray()
+        bowlersList.forEach { bwListJson.put(it.toJson()) }
+        root.put("saved_bowlers_list", bwListJson)
+
         return root.toString()
+    }
+
+    companion object {
+        fun createDefaultMatch(): MatchState {
+            return MatchState(
+                battingTeam = "SHRI BODGESHWAR",
+                bowlingTeam = "SHRUTESH 11",
+                totalRuns = 0,
+                totalWickets = 0,
+                totalBallsBowled = 0,
+                maxOvers = 8,
+                tossInfo = "SHRUTESH 11 DECIDED TO BOWL",
+                strikerName = "GAURESH S",
+                nonStrikerName = "AJAY YADAV",
+                currentBowlerName = "HARSHAD M",
+                batsmenList = mutableListOf(
+                    Batsman("GAURESH S"),
+                    Batsman("AJAY YADAV"),
+                    Batsman("PRATHAMESH K"),
+                    Batsman("ROHIT P"),
+                    Batsman("SUNIL V"),
+                    Batsman("KUNAL T")
+                ),
+                bowlersList = mutableListOf(
+                    Bowler("HARSHAD M"),
+                    Bowler("SACHIN R"),
+                    Bowler("AMIT S"),
+                    Bowler("VIKRAM M")
+                ),
+                currentOverBalls = mutableListOf(),
+                isOverComplete = false
+            )
+        }
+
+        fun fromJson(jsonStr: String): MatchState {
+            val root = JSONObject(jsonStr)
+            val bTeam = root.optJSONObject("teamBatting")
+            val bwTeam = root.optJSONObject("teamBowling")
+
+            val state = MatchState(
+                battingTeam = bTeam?.optString("name", "SHRI BODGESHWAR") ?: "SHRI BODGESHWAR",
+                bowlingTeam = bwTeam?.optString("name", "SHRUTESH 11") ?: "SHRUTESH 11",
+                totalRuns = bTeam?.optInt("runs", 0) ?: 0,
+                totalWickets = bTeam?.optInt("wickets", 0) ?: 0,
+                totalBallsBowled = root.optInt("totalBallsBowled", 0),
+                maxOvers = root.optInt("totalOvers", 8),
+                tossInfo = root.optString("tossInfo", ""),
+                target = root.optInt("target", 0),
+                lastEvent = root.optString("lastEvent", null),
+                eventId = root.optLong("eventId", 0),
+                isOverComplete = root.optBoolean("isOverComplete", false)
+            )
+
+            val strikerObj = root.optJSONObject("striker")
+            if (strikerObj != null) state.strikerName = strikerObj.optString("name", "GAURESH S")
+
+            val nonStrikerObj = root.optJSONObject("nonStriker")
+            if (nonStrikerObj != null) state.nonStrikerName = nonStrikerObj.optString("name", "AJAY YADAV")
+
+            val bowlerObj = root.optJSONObject("bowler")
+            if (bowlerObj != null) state.currentBowlerName = bowlerObj.optString("name", "HARSHAD M")
+
+            // Saved ball list
+            val ballsArr = root.optJSONArray("thisOver")
+            if (ballsArr != null) {
+                for (i in 0 until ballsArr.length()) {
+                    state.currentOverBalls.add(ballsArr.optString(i))
+                }
+            }
+
+            // Saved batsmen list
+            val bArr = root.optJSONArray("saved_batsmen_list")
+            if (bArr != null && bArr.length() > 0) {
+                for (i in 0 until bArr.length()) {
+                    val bObj = bArr.optJSONObject(i)
+                    if (bObj != null) state.batsmenList.add(Batsman.fromJson(bObj))
+                }
+            } else {
+                state.batsmenList = createDefaultMatch().batsmenList
+            }
+
+            // Saved bowlers list
+            val bwArr = root.optJSONArray("saved_bowlers_list")
+            if (bwArr != null && bwArr.length() > 0) {
+                for (i in 0 until bwArr.length()) {
+                    val bwObj = bwArr.optJSONObject(i)
+                    if (bwObj != null) state.bowlersList.add(Bowler.fromJson(bwObj))
+                }
+            } else {
+                state.bowlersList = createDefaultMatch().bowlersList
+            }
+
+            return state
+        }
     }
 }
 
@@ -208,51 +350,39 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
     var roomId by remember { mutableStateOf(prefs.getString("room_id", "cricket-live-1") ?: "cricket-live-1") }
     var webBaseUrl by remember { mutableStateOf(prefs.getString("web_url", "https://sunandanproject.vercel.app") ?: "https://sunandanproject.vercel.app") }
 
-    // Initial default match state matching the user's screenshot
+    // RESTORE SAVED MATCH STATE FROM PREFERENCES (PERSISTENCE)
     var matchState by remember {
         mutableStateOf(
-            MatchState(
-                battingTeam = "SHRI BODGESHWAR",
-                bowlingTeam = "SHRUTESH 11",
-                totalRuns = 13,
-                totalWickets = 0,
-                totalBallsBowled = 6,
-                maxOvers = 8,
-                tossInfo = "SHRUTESH 11 DECIDED TO BOWL",
-                strikerName = "GAURESH S",
-                nonStrikerName = "AJAY YADAV",
-                currentBowlerName = "HARSHAD M",
-                batsmenList = mutableListOf(
-                    Batsman("GAURESH S", runs = 0, balls = 0),
-                    Batsman("AJAY YADAV", runs = 12, balls = 6, fours = 0, sixes = 2),
-                    Batsman("PRATHAMESH K"),
-                    Batsman("ROHIT P"),
-                    Batsman("SUNIL V"),
-                    Batsman("KUNAL T")
-                ),
-                bowlersList = mutableListOf(
-                    Bowler("HARSHAD M", ballsBowled = 6, runsConceded = 13, wickets = 0),
-                    Bowler("SACHIN R"),
-                    Bowler("AMIT S"),
-                    Bowler("VIKRAM M")
-                ),
-                currentOverBalls = mutableListOf("•", "6", "•", "WD", "•", "•", "6")
-            )
+            run {
+                val savedJson = prefs.getString("saved_match_state", null)
+                if (!savedJson.isNullOrBlank()) {
+                    try {
+                        MatchState.fromJson(savedJson)
+                    } catch (e: Exception) {
+                        MatchState.createDefaultMatch()
+                    }
+                } else {
+                    MatchState.createDefaultMatch()
+                }
+            }
         )
     }
 
-    // Undo stack
     val historyStack = remember { mutableStateListOf<MatchState>() }
-
     var isLiveSynced by remember { mutableStateOf(true) }
+
     var showTeamSetupDialog by remember { mutableStateOf(false) }
     var showPlayerPickerModal by remember { mutableStateOf(false) }
-    var pickerTarget by remember { mutableStateOf("striker") } // "striker", "nonStriker", "bowler"
+    var pickerTarget by remember { mutableStateOf("striker") }
     var showSettingsDialog by remember { mutableStateOf(false) }
-    var showWicketDialog by remember { mutableStateOf(false) }
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showOverCompleteDialog by remember { mutableStateOf(false) }
 
-    // Helper to push match state to cloud relay
-    fun broadcastMatchState(state: MatchState) {
+    // Helper to broadcast match state to cloud relay and persist to SharedPreferences
+    fun broadcastAndSaveState(state: MatchState) {
+        matchState = state
+        prefs.edit().putString("saved_match_state", state.toJsonString()).apply()
+
         val payload = state.toJsonString()
         val requestBody = payload.toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder()
@@ -273,13 +403,28 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
         })
     }
 
-    // Scoring Engine
-    fun recordBall(runs: Int, isWide: Boolean = false, isNoBall: Boolean = false, isWicket: Boolean = false) {
-        // Save state for undo
-        historyStack.add(matchState.deepCopy())
+    // On initial composition, sync current match state to OBS automatically
+    LaunchedEffect(Unit) {
+        broadcastAndSaveState(matchState)
+    }
 
+    // SCORING ENGINE WITH PROPER OVER-RESET LOGIC
+    fun recordBall(runs: Int, isWide: Boolean = false, isNoBall: Boolean = false, isWicket: Boolean = false) {
+        // Prevent exceeding max overs
+        if (matchState.totalBallsBowled >= matchState.maxOvers * 6 && !isWide && !isNoBall) {
+            Toast.makeText(context, "Innings Complete! Max overs reached (${matchState.maxOvers} ov).", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        historyStack.add(matchState.deepCopy())
         val state = matchState.deepCopy()
         state.eventId = System.currentTimeMillis()
+
+        // IF THE PREVIOUS BALL FINISHED AN OVER, CLEAR THE OVER BUBBLES NOW FOR THE NEW OVER!
+        if (state.isOverComplete) {
+            state.currentOverBalls.clear()
+            state.isOverComplete = false
+        }
 
         val striker = state.batsmenList.find { it.name == state.strikerName } ?: Batsman(state.strikerName).also { state.batsmenList.add(it) }
         val bowler = state.bowlersList.find { it.name == state.currentBowlerName } ?: Bowler(state.currentBowlerName).also { state.bowlersList.add(it) }
@@ -335,29 +480,29 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
             state.nonStrikerName = temp
         }
 
-        // Check Over completion (6 legal balls in current over)
-        val legalBallsInOver = state.totalBallsBowled % 6
-        if (isLegalBall && legalBallsInOver == 0) {
-            // End of Over: Auto-swap striker
+        // CHECK OVER COMPLETION: 6 legal balls bowled in current over
+        val legalBallsInCurrentOver = state.totalBallsBowled % 6
+        if (isLegalBall && legalBallsInCurrentOver == 0 && state.totalBallsBowled > 0) {
+            // Over finished: Auto-swap striker and non-striker
             val temp = state.strikerName
             state.strikerName = state.nonStrikerName
             state.nonStrikerName = temp
-            
-            // Clear current over list for next over
-            state.currentOverBalls.clear()
-            Toast.makeText(context, "Over Complete! Select next bowler.", Toast.LENGTH_SHORT).show()
+
+            // Mark over complete so the balls stay visible in OBS until the next over begins!
+            state.isOverComplete = true
+
+            // Prompt to select the next bowler
+            showOverCompleteDialog = true
         }
 
-        matchState = state
-        broadcastMatchState(state)
+        broadcastAndSaveState(state)
     }
 
     fun undoLastBall() {
         if (historyStack.isNotEmpty()) {
             val last = historyStack.removeAt(historyStack.size - 1)
-            matchState = last
-            broadcastMatchState(last)
-            Toast.makeText(context, "Undone!", Toast.LENGTH_SHORT).show()
+            broadcastAndSaveState(last)
+            Toast.makeText(context, "Last ball undone!", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(context, "Nothing to undo", Toast.LENGTH_SHORT).show()
         }
@@ -369,8 +514,7 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
         val temp = state.strikerName
         state.strikerName = state.nonStrikerName
         state.nonStrikerName = temp
-        matchState = state
-        broadcastMatchState(state)
+        broadcastAndSaveState(state)
     }
 
     val fullObsUrl = remember(webBaseUrl, roomId) {
@@ -383,26 +527,23 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "🏏 Cricket Live Scorer",
+                            text = "🏏 Cricket Scorer",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
-                                .size(9.dp)
+                                .size(8.dp)
                                 .clip(CircleShape)
                                 .background(if (isLiveSynced) Color(0xFF4CAF50) else Color(0xFFFF9800))
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (isLiveSynced) "OBS LIVE" else "SYNCING",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isLiveSynced) Color(0xFF4CAF50) else Color(0xFFFF9800)
                         )
                     }
                 },
                 actions = {
+                    // New Match / Reset Match Button
+                    IconButton(onClick = { showResetConfirmDialog = true }) {
+                        Icon(imageVector = Icons.Default.RestartAlt, contentDescription = "New Match", tint = Color(0xFFE53935))
+                    }
                     IconButton(onClick = { showTeamSetupDialog = true }) {
                         Icon(imageVector = Icons.Default.GroupAdd, contentDescription = "Team Registration")
                     }
@@ -588,29 +729,57 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Ball-by-ball pill history
-                    Text("THIS OVER:", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    // Ball-by-ball pill history for the current over
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        items(matchState.currentOverBalls) { ball ->
-                            val (bgColor, textColor) = when {
-                                ball == "6" -> Color(0xFF2563EB) to Color.White
-                                ball == "4" -> Color(0xFF16A34A) to Color.White
-                                ball == "WKT" -> Color(0xFFDC2626) to Color.White
-                                ball.contains("WD") || ball.contains("NB") -> Color(0xFFD97706) to Color.White
-                                else -> Color(0xFFF3F4F6) to Color.Black
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(bgColor),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(text = ball, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = textColor)
+                        Text(
+                            text = if (matchState.isOverComplete) "OVER COMPLETE:" else "THIS OVER:",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (matchState.isOverComplete) Color(0xFFE53935) else Color.Gray,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (matchState.currentOverBalls.isNotEmpty()) {
+                            Text(
+                                text = "${matchState.currentOverBalls.size} balls",
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    if (matchState.currentOverBalls.isEmpty()) {
+                        Text(
+                            text = "Waiting for first ball of over...",
+                            fontSize = 12.sp,
+                            color = Color.LightGray,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    } else {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(matchState.currentOverBalls) { ball ->
+                                val (bgColor, textColor) = when {
+                                    ball == "6" -> Color(0xFF2563EB) to Color.White
+                                    ball == "4" -> Color(0xFF16A34A) to Color.White
+                                    ball == "WKT" -> Color(0xFFDC2626) to Color.White
+                                    ball.contains("WD") || ball.contains("NB") -> Color(0xFFD97706) to Color.White
+                                    else -> Color(0xFFF3F4F6) to Color.Black
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(bgColor),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = ball, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = textColor)
+                                }
                             }
                         }
                     }
@@ -619,7 +788,7 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 4. BIG QUICK SCORING KEYPAD
+            // 4. BIG TOUCH SCORING KEYPAD
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Runs 0, 1, 2, 3
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -653,7 +822,7 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
                     }
                 }
 
-                // Bottom Action Row: Wicket and Undo
+                // Bottom Row: Wicket and Undo
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { recordBall(0, isWicket = true) },
@@ -678,7 +847,94 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
         }
     }
 
-    // 5. PLAYER PICKER MODAL (Striker / Non-Striker / Bowler)
+    // 5. OVER COMPLETE DIALOG (Prompts to select next bowler)
+    if (showOverCompleteDialog) {
+        val bowlers = matchState.bowlersList.map { it.name }
+        AlertDialog(
+            onDismissRequest = { showOverCompleteDialog = false },
+            title = {
+                Text("Over Complete! 🎯", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Over ${matchState.currentOversFormatted} finished. Select the next bowler to bowl:",
+                        fontSize = 14.sp,
+                        color = Color.DarkGray
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
+                        items(bowlers) { bName ->
+                            val isCurrent = bName == matchState.currentBowlerName
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        historyStack.add(matchState.deepCopy())
+                                        val state = matchState.deepCopy()
+                                        state.currentBowlerName = bName
+                                        broadcastAndSaveState(state)
+                                        showOverCompleteDialog = false
+                                        Toast.makeText(context, "$bName is now bowling", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(vertical = 10.dp, horizontal = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = bName,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isCurrent) Color(0xFFD97706) else Color.Black
+                                )
+                                if (isCurrent) {
+                                    Text("(Just Bowled)", fontSize = 11.sp, color = Color.Gray)
+                                } else {
+                                    Icon(Icons.Default.Check, contentDescription = "Select", tint = Color(0xFF16A34A))
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showOverCompleteDialog = false }) {
+                    Text("Done")
+                }
+            }
+        )
+    }
+
+    // 6. RESET MATCH CONFIRMATION DIALOG
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmDialog = false },
+            title = { Text("Start New Match?") },
+            text = { Text("This will reset the score to 0-0 and clear all batsman and bowler stats. Are you sure?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val freshState = MatchState.createDefaultMatch()
+                        freshState.battingTeam = matchState.battingTeam
+                        freshState.bowlingTeam = matchState.bowlingTeam
+                        freshState.maxOvers = matchState.maxOvers
+                        historyStack.clear()
+                        broadcastAndSaveState(freshState)
+                        showResetConfirmDialog = false
+                        Toast.makeText(context, "New Match Started (0-0)!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                ) {
+                    Text("Reset Match")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirmDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // 7. PLAYER PICKER MODAL (Striker / Non-Striker / Bowler)
     if (showPlayerPickerModal) {
         val isBowling = pickerTarget == "bowler"
         val teamList = if (isBowling) matchState.bowlersList.map { it.name } else matchState.batsmenList.filter { !it.isOut }.map { it.name }
@@ -709,8 +965,7 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
                                         else if (pickerTarget == "nonStriker") state.nonStrikerName = player
                                         else state.currentBowlerName = player
 
-                                        matchState = state
-                                        broadcastMatchState(state)
+                                        broadcastAndSaveState(state)
                                         showPlayerPickerModal = false
                                     }
                                     .padding(vertical = 10.dp, horizontal = 4.dp),
@@ -744,8 +999,7 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
                                     state.batsmenList.add(Batsman(name))
                                     if (pickerTarget == "striker") state.strikerName = name else state.nonStrikerName = name
                                 }
-                                matchState = state
-                                broadcastMatchState(state)
+                                broadcastAndSaveState(state)
                                 showPlayerPickerModal = false
                             }
                         },
@@ -762,7 +1016,7 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
         )
     }
 
-    // 6. TOURNAMENT & TEAM SETUP DIALOG
+    // 8. TOURNAMENT & TEAM SETUP DIALOG
     if (showTeamSetupDialog) {
         var teamA by remember { mutableStateOf(matchState.battingTeam) }
         var teamB by remember { mutableStateOf(matchState.bowlingTeam) }
@@ -812,8 +1066,7 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
                         state.bowlingTeam = teamB.trim().ifBlank { "BOWLING TEAM" }
                         state.maxOvers = oversCount.toIntOrNull() ?: 8
                         state.tossInfo = tossDetail.trim()
-                        matchState = state
-                        broadcastMatchState(state)
+                        broadcastAndSaveState(state)
                         showTeamSetupDialog = false
                         Toast.makeText(context, "Match Setup Updated!", Toast.LENGTH_SHORT).show()
                     }
@@ -827,7 +1080,7 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
         )
     }
 
-    // 7. ROOM & VERCEL URL SETTINGS
+    // 9. ROOM & VERCEL URL SETTINGS
     if (showSettingsDialog) {
         var tempRoom by remember { mutableStateOf(roomId) }
         var tempUrl by remember { mutableStateOf(webBaseUrl) }
@@ -861,7 +1114,7 @@ fun CricketScorerScreen(httpClient: OkHttpClient) {
                         webBaseUrl = tempUrl.ifBlank { "https://sunandanproject.vercel.app" }
                         prefs.edit().putString("room_id", roomId).putString("web_url", webBaseUrl).apply()
                         showSettingsDialog = false
-                        broadcastMatchState(matchState)
+                        broadcastAndSaveState(matchState)
                     }
                 ) {
                     Text("Save")
